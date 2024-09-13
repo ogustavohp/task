@@ -249,3 +249,203 @@ Passamos asChild para n criar 2 buttons, com um dentro do outro
   </Button>
 </DialogTrigger>
 ```
+
+O StrictMode do react faz carregar duas vezes em desenvolvimento
+
+
+Para fetch de dados nos vamos usar o TanStack query
+
+```bash
+npm i @tanstack/react-query
+```
+
+```bash
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from './app.tsx'
+import './index.css'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient()
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </StrictMode>
+)
+```
+
+```bash
+import { useEffect, useState } from 'react'
+import { CreateGoal } from './components/create-goal'
+import { EmptyGoals } from './components/empty-goals'
+import { Summary } from './components/summary'
+import { Dialog } from './components/ui/dialog'
+import { useQuery } from '@tanstack/react-query'
+import { getSummary } from './http/get-summary'
+
+export function App() {
+  const { data } = useQuery({
+    queryKey: ['summary'],
+    queryFn: getSummary,
+    staleTime: 1000 * 60 //60seconds
+  })
+
+  return (
+    <Dialog>
+      {data && data.total > 0 ? <Summary /> : <EmptyGoals />}
+
+      <CreateGoal />
+    </Dialog>
+  )
+}
+```
+```bash
+export type SummaryResponse = {
+  completed: number
+  total: number
+  goalsPerDay: Record<
+    string,
+    {
+      id: string
+      title: string
+      completedAt: string
+    }[]
+  >
+}
+
+export async function getSummary(): Promise<SummaryResponse> {
+  const response = await fetch('http://localhost:3333/summary')
+  const data = await response.json()
+
+  return data.summary
+}
+```
+
+Instalar o dayjs
+e deixar ele me pt-br
+```bash
+import dayjs from 'dayjs'
+import ptBR from 'dayjs/locale/pt-br'
+
+dayjs.locale(ptBR)
+```
+para refazer as queries fazemos o seguinte, logo quando eu realizar a query para completar a meta, ele refazer a quey de summary e pending-goals e isso vai atualizar os dados
+```bash
+  const queryClient = useQueryClient()
+
+  const { data } = useQuery({
+    queryKey: ['pending-goals'],
+    queryFn: getPendingGoals,
+    staleTime: 1000 * 60, //60seconds
+  })
+
+  if (!data) {
+    return null
+  }
+
+  async function handleCompleteGoal(goalId: string) {
+    await createGoalCompletion(goalId)
+
+    queryClient.invalidateQueries({ queryKey: ['summary'] })
+    queryClient.invalidateQueries({ queryKey: ['pending-goals'] })
+  }
+```
+
+## Form
+Vamos usar o react-hook-form
+```bash
+npm i react-hook-form @hookform/resolvers zod
+```
+```bash
+const createGoalForm = z.object({
+  title: z.string().min(1, 'Informe a atividade que deseja realizar.'),
+  desiredWeeklyFrequency: z.coerce.number().min(1).max(7),
+})
+
+export function CreateGoal() {
+  const { register, control } = useForm({
+    resolver: zodResolver(createGoalForm),
+  })
+  return (
+    <Input
+      id="title"
+      autoFocus
+      placeholder="Praticar exercícios, meditar, etc..."
+      {...register('title')}
+    />
+  )
+```
+Para inputs que não são nativos como o radio group do radix
+```bash
+<Controller
+  control={control}
+  name="desiredWeeklyFrequency"
+  render={({ field }) => {
+    return (
+      <RadioGroup
+        onValueChange={field.onChange}
+        value={field.value}
+      >
+        <RadioGroupItem value="1">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            1x na semana
+          </span>
+          <span className="text-lg leading-none">🥱</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="2">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            2x na semana
+          </span>
+          <span className="text-lg leading-none">🙂</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="3">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            3x na semana
+          </span>
+          <span className="text-lg leading-none">😎</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="4">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            4x na semana
+          </span>
+          <span className="text-lg leading-none">😜</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="5">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            5x na semana
+          </span>
+          <span className="text-lg leading-none">🤨</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="6">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            6x na semana
+          </span>
+          <span className="text-lg leading-none">🤯</span>
+        </RadioGroupItem>
+
+        <RadioGroupItem value="7">
+          <RadioGroupIndicator />
+          <span className="text-zinc-300 text-sm font-medium leading-none">
+            Todos dias da semana
+          </span>
+          <span className="text-lg leading-none">🔥</span>
+        </RadioGroupItem>
+      </RadioGroup>
+    )
+  }}
+/>
+```
